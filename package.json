@@ -1,0 +1,28 @@
+{
+  "name": "resdata",
+  "version": "1.0.0",
+  "description": "Smart Inventory Management System API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed:admin": "node seed-admin.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "suryaP",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.1",
+    "mysql2": "^3.12.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
