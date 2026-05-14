@@ -213,14 +213,32 @@ app.use(errorHandler);
 // ============================================
 // START SERVER
 // ============================================
+
+// commented out on 14 may 2026 as per mvp 1.0 version
+// this config will be used for local development
+
+// const PORT = process.env.PORT || 3000;
+// const HOST = process.env.HOST || 'localhost';
+
+// // Test database connection and start server
+// testConnection().then(() => {
+//   httpServer.listen(PORT, HOST, () => {
+//     console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
+//     console.log(`📦 Product API: POST http://${HOST}:${PORT}/api/products`);
+//   });
+// }).catch((err) => {
+//   console.error('Failed to start server:', err);
+// });
+// commented out on 14 may 2026 as per mvp 1.0 version
+// this config will be used for local development
+
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || 'localhost';
 
 // Test database connection and start server
 testConnection().then(() => {
-  httpServer.listen(PORT, HOST, () => {
-    console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
-    console.log(`📦 Product API: POST http://${HOST}:${PORT}/api/products`);
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`📦 Product API ready`);
   });
 }).catch((err) => {
   console.error('Failed to start server:', err);
