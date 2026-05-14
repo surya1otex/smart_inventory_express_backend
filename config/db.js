@@ -7,6 +7,13 @@ const mysql = require('mysql2/promise');
 const { loadEnv } = require('../utils/env');
 loadEnv();
 
+console.log("============== ENV DEBUG ==============");
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_PORT:", process.env.DB_PORT);
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_NAME:", process.env.DB_NAME);
+console.log("=======================================");
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 3306,
@@ -27,7 +34,8 @@ const testConnection = async () => {
     console.log('✅ Database connected successfully');
     connection.release();
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
+    //console.error('❌ Database connection failed:', error.message);
+    console.error('❌ Database connection failed FULL:', error);
     process.exit(1);
   }
 };
