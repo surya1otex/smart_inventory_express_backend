@@ -12,7 +12,7 @@ const loadEnv = () => {
   // Canonical app settings — wins over root .env so JWT_SECRET in config/.env is never shadowed by an empty root var
   dotenv.config({
     path: path.join(__dirname, '..', 'config', '.env'),
-    override: true,
+    override: false,
   });
 
   loaded = true;
