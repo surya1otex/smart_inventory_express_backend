@@ -9,7 +9,6 @@ loadEnv();
 
 // Import required modules
 const express = require('express');
-const mysql = require('mysql2');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const multer = require('multer');
@@ -81,67 +80,50 @@ app.use('/api/auth', authRoutes);
 // LEGACY ROUTES (existing endpoints)
 // ============================================
 
-// Legacy MySQL connection (for backward compatibility)
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'smart_inventory',
-});
-
-db.connect((err) => {
-  if (err) {
-    console.error('Legacy DB connection error:', err.stack);
-    return;
-  }
-  console.log('Legacy DB connected.');
-});
-
 // Fetch all items with categories
-app.get('/api/allitems', (req, res) => {
+app.get('/api/allitems', async (req, res) => {
   const query = 'SELECT * FROM products INNER JOIN categories on products.category_id = categories.category_id;';
-  
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching items:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+
+  try {
+    const [results] = await pool.query(query);
     res.status(200).json(results);
-  });
+  } catch (err) {
+    console.error('Error fetching items:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
 });
 
 // Fetch store by ID
-app.get('/api/store/:id', (req, res) => {
+app.get('/api/store/:id', async (req, res) => {
   const { id } = req.params;
   const query = 'SELECT * FROM res_stores WHERE store_id = ?';
 
-  db.query(query, [id], (err, results) => {
-    if (err) {
-      console.error('Error fetching store:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+  try {
+    const [results] = await pool.query(query, [id]);
 
     if (results.length === 0) {
       return res.status(404).json({ message: 'Store not found' });
     }
 
     res.status(200).json(results[0]);
-  });
+  } catch (err) {
+    console.error('Error fetching store:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
 });
 
 // Add new store
-app.post('/api/store/add', (req, res) => {
+app.post('/api/store/add', async (req, res) => {
   const { firstCtrl, secondCtrl } = req.body;
 
   const sql = `INSERT INTO res_stores (store_name, contact, address) VALUES (?, ?, ?)`;
-  db.query(sql, [firstCtrl, 50, secondCtrl], (err, result) => {
-    if (err) {
-      console.error('Error inserting Store:', err);
-      res.status(500).json({ message: 'Error inserting Store', error: err });
-    } else {
-      res.status(200).json({ message: 'Store added successfully', productId: result.insertId });
-    }
-  });
+  try {
+    const [result] = await pool.query(sql, [firstCtrl, 50, secondCtrl]);
+    res.status(200).json({ message: 'Store added successfully', productId: result.insertId });
+  } catch (err) {
+    console.error('Error inserting Store:', err);
+    res.status(500).json({ message: 'Error inserting Store', error: err });
+  }
 });
 
 // Add store items with file upload
@@ -179,14 +161,9 @@ app.post('/api/storeitems/items', upload.any(), async (req, res) => {
 
     console.log('data insert to db are', values);
 
-    db.query(sql, [values], (err, result) => {
-      if (err) {
-        console.error('Database error:', err);
-        return res.status(500).json({ error: 'Insert failed' });
-      }
-      io.emit('newItem', { message: 'New order created!', order: 'test response' });
-      res.json({ message: 'Items inserted with images', inserted: result.affectedRows });
-    });
+    const [result] = await pool.query(sql, [values]);
+    io.emit('newItem', { message: 'New order created!', order: 'test response' });
+    res.json({ message: 'Items inserted with images', inserted: result.affectedRows });
 
   } catch (err) {
     console.error('Upload error:', err);
@@ -195,37 +172,36 @@ app.post('/api/storeitems/items', upload.any(), async (req, res) => {
 });
 
 // Fetch store items by store ID
-app.get('/api/storeitems/:id', (req, res) => {
+app.get('/api/storeitems/:id', async (req, res) => {
   const { id } = req.params;
   const query = 'SELECT * FROM res_items WHERE store_id = ?';
 
-  db.query(query, [id], (err, results) => {
-    if (err) {
-      console.error('Error fetching store items:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+  try {
+    const [results] = await pool.query(query, [id]);
 
     if (results.length === 0) {
       return res.status(404).json({ message: 'Store items not found' });
     }
 
     res.status(200).json(results);
-  });
+  } catch (err) {
+    console.error('Error fetching store items:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
 });
 
 // Fetch products by category
-app.get('/api/products/category/:category_id', (req, res) => {
+app.get('/api/products/category/:category_id', async (req, res) => {
   const { category_id } = req.params;
   const query = 'SELECT * FROM products WHERE category_id = ?';
 
-  db.query(query, [category_id], (err, results) => {
-    if (err) {
-      console.error('Error fetching products:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
-
+  try {
+    const [results] = await pool.query(query, [category_id]);
     res.status(200).json(results);
-  });
+  } catch (err) {
+    console.error('Error fetching products:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
 });
 
 // ============================================
