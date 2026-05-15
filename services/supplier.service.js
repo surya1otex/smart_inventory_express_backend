@@ -50,8 +50,12 @@ exports.create = async (pool, supplierData) => {
  * Get all suppliers with optional search and pagination
  */
 exports.findAll = async (pool, options = {}) => {
-  const { search, page = 1, limit = 50 } = options;
-  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const { search } = options;
+  const pageNum = Math.max(1, parseInt(options.page, 10) || 1);
+  let limitNum = parseInt(options.limit, 10);
+  if (!Number.isFinite(limitNum) || limitNum < 1) limitNum = 50;
+  limitNum = Math.min(500, limitNum);
+  const offsetNum = (pageNum - 1) * limitNum;
 
   let query = 'SELECT * FROM suppliers';
   let countQuery = 'SELECT COUNT(*) as total FROM suppliers';
@@ -68,9 +72,8 @@ exports.findAll = async (pool, options = {}) => {
     countParams.push(searchValue, searchValue, searchValue, searchValue);
   }
 
-  // Add ordering and pagination
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-  params.push(parseInt(limit), offset);
+  // Add ordering and pagination (LIMIT/OFFSET must not use ? with pool.execute on some servers)
+  query += ` ORDER BY created_at DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
   // Execute queries
   const [suppliers] = await pool.execute(query, params);
@@ -84,9 +87,9 @@ exports.findAll = async (pool, options = {}) => {
       suppliers,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit))
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
       }
     }
   };

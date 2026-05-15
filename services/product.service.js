@@ -52,8 +52,12 @@ const checkBarcodeExists = async (barcode, excludeProductId = null) => {
  * @returns {Promise<Object>}
  */
 const findAll = async (options = {}) => {
-  const { search, page = 1, limit = 50, category_id } = options;
-  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const { search, category_id } = options;
+  const pageNum = Math.max(1, parseInt(options.page, 10) || 1);
+  let limitNum = parseInt(options.limit, 10);
+  if (!Number.isFinite(limitNum) || limitNum < 1) limitNum = 50;
+  limitNum = Math.min(500, limitNum);
+  const offsetNum = (pageNum - 1) * limitNum;
 
   let query = `
     SELECT p.*, c.category_name 
@@ -88,9 +92,8 @@ const findAll = async (options = {}) => {
     countQuery += whereClause;
   }
 
-  // Add ordering and pagination
-  query += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
-  params.push(parseInt(limit), offset);
+  // Add ordering and pagination (LIMIT/OFFSET must not use ? with pool.execute on some servers)
+  query += ` ORDER BY p.created_at DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
   // Execute queries
   const [products] = await pool.execute(query, params);
@@ -104,9 +107,9 @@ const findAll = async (options = {}) => {
       products,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit))
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
       }
     }
   };
