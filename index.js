@@ -25,6 +25,7 @@ const purchaseRoutes = require('./routes/purchase.routes');
 const salesRoutes = require('./routes/sales.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const authRoutes = require('./routes/auth.routes');
+const reportsRoutes = require('./routes/reports.routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 // Initialize Express app
@@ -76,6 +77,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/reports', reportsRoutes);
 // ============================================
 // LEGACY ROUTES (existing endpoints)
 // ============================================
