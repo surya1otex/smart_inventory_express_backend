@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const categoryController = require('../controllers/category.controller');
+const { verifyToken } = require('../middleware/auth.middleware');
 
 /**
  * GET /api/categories
@@ -17,7 +18,7 @@ router.get('/', categoryController.findAll);
  * POST /api/categories
  * Create a new category
  */
-router.post('/', categoryController.create);
+router.post('/', verifyToken, categoryController.create);
 
 /**
  * GET /api/categories/:id
@@ -29,13 +30,13 @@ router.get('/:id', categoryController.findOne);
  * PUT /api/categories/:id
  * Update a category
  */
-router.put('/:id', categoryController.update);
+router.put('/:id', verifyToken, categoryController.update);
 
 /**
  * DELETE /api/categories/:id
  * Delete a category
  */
-router.delete('/:id', categoryController.delete);
+router.delete('/:id', verifyToken, categoryController.delete);
 
 module.exports = router;
 

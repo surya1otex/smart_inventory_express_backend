@@ -26,7 +26,9 @@ const salesRoutes = require('./routes/sales.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const authRoutes = require('./routes/auth.routes');
 const reportsRoutes = require('./routes/reports.routes');
+const batchRoutes = require('./routes/batch.routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
+const { verifyToken } = require('./middleware/auth.middleware');
 
 // Initialize Express app
 const app = express();
@@ -78,12 +80,13 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/batches', batchRoutes);
 // ============================================
 // LEGACY ROUTES (existing endpoints)
 // ============================================
 
 // Fetch all items with categories
-app.get('/api/allitems', async (req, res) => {
+app.get('/api/allitems', verifyToken, async (req, res) => {
   const query = 'SELECT * FROM products INNER JOIN categories on products.category_id = categories.category_id;';
 
   try {
@@ -129,7 +132,7 @@ app.post('/api/store/add', async (req, res) => {
 });
 
 // Add store items with file upload
-app.post('/api/storeitems/items', upload.any(), async (req, res) => {
+app.post('/api/storeitems/items', verifyToken, upload.any(), async (req, res) => {
   try {
     const body = req.body;
     const files = req.files;
@@ -193,7 +196,7 @@ app.get('/api/storeitems/:id', async (req, res) => {
 });
 
 // Fetch products by category
-app.get('/api/products/category/:category_id', async (req, res) => {
+app.get('/api/products/category/:category_id', verifyToken, async (req, res) => {
   const { category_id } = req.params;
   const query = 'SELECT * FROM products WHERE category_id = ?';
 

@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const purchaseController = require('../controllers/purchase.controller');
+const { verifyToken } = require('../middleware/auth.middleware');
+
+router.use(verifyToken);
 
 // Get all purchases
 router.get('/', purchaseController.getAll);

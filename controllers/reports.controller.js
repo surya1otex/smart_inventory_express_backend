@@ -209,7 +209,6 @@ exports.getGstReport = async (req, res) => {
         SUM(
           (IFNULL(ii.quantity, 0) * IFNULL(ii.selling_price, 0) * IFNULL(ii.tax_percent, 0) / 100) / 2
         ) AS sgst,
-        0 AS igst,
         SUM(
           IFNULL(ii.quantity, 0) * IFNULL(ii.selling_price, 0)
           * (1 + IFNULL(ii.tax_percent, 0) / 100)
@@ -254,7 +253,7 @@ exports.getGstReport = async (req, res) => {
       taxableAmount: round2(r.taxable_amount),
       cgst: round2(r.cgst),
       sgst: round2(r.sgst),
-      igst: round2(r.igst),
+      igst: null,
       total: round2(r.line_total),
     }));
 
@@ -267,6 +266,9 @@ exports.getGstReport = async (req, res) => {
           outputGst,
           inputGst,
           netGstPayable: round2(outputGst - inputGst),
+          placeOfSupply: 'not_recorded',
+          igstCalculated: false,
+          note: 'CGST and SGST assume an intra-state supply and split the charged GST in half. IGST is not calculated because customer state is not stored.',
         },
         rows: mappedRows,
       },

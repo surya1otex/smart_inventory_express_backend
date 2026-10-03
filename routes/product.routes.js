@@ -9,6 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/product.controller');
+const { verifyToken } = require('../middleware/auth.middleware');
 
 /**
  * GET /api/products/search
@@ -22,7 +23,7 @@ router.get('/search', productController.searchProducts);
  * Get all batches for a specific product
  * IMPORTANT: This route must be declared BEFORE /:id to prevent "batches" from being treated as an ID
  */
-router.get('/:productId/batches', productController.getProductBatches);
+router.get('/:productId/batches', verifyToken, productController.getProductBatches);
 
 /**
  * GET /api/products
@@ -34,24 +35,24 @@ router.get('/', productController.getAllProducts);
  * GET /api/products/:id
  * Get product by ID
  */
-router.get('/:id', productController.getProductById);
+router.get('/:id', verifyToken, productController.getProductById);
 
 /**
  * POST /api/products
  * Create a new product
  */
-router.post('/', productController.createProduct);
+router.post('/', verifyToken, productController.createProduct);
 
 /**
  * PUT /api/products/:id
  * Update a product
  */
-router.put('/:id', productController.updateProduct);
+router.put('/:id', verifyToken, productController.updateProduct);
 
 /**
  * DELETE /api/products/:id
  * Delete a product
  */
-router.delete('/:id', productController.deleteProduct);
+router.delete('/:id', verifyToken, productController.deleteProduct);
 
 module.exports = router;

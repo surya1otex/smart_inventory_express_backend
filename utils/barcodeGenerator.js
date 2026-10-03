@@ -12,5 +12,13 @@ const generateInternalBarcode = (productId) => {
   return `${prefix}${year}${paddedProductId}`;
 };
 
-module.exports = { generateInternalBarcode };
+/**
+ * Batch barcode: MED-{product_id}-{batch_id}
+ * Example: MED-12-58
+ */
+const generateBatchBarcode = (productId, batchId) => {
+  return `MED-${productId}-${batchId}`;
+};
+
+module.exports = { generateInternalBarcode, generateBatchBarcode };
 

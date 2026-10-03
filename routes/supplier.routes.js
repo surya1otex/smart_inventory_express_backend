@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const supplierController = require('../controllers/supplier.controller');
+const { verifyToken } = require('../middleware/auth.middleware');
+
+router.use(verifyToken);
 
 // Create a new supplier
 router.post('/', supplierController.create);

@@ -3,6 +3,8 @@
  * Uses MySQL transactions to ensure data consistency
  */
 
+const { generateBatchBarcode } = require('../utils/barcodeGenerator');
+
 /**
  * Get all purchases with supplier information
  * Returns purchase list sorted by latest first
@@ -68,6 +70,7 @@ exports.findOne = async (pool, id) => {
       pi.product_id,
       pr.product_name,
       sb.batch_no,
+      sb.barcode,
       sb.expiry_date,
       pi.qty,
       pi.free_qty,
@@ -245,6 +248,12 @@ exports.create = async (pool, purchaseData) => {
       );
 
       const batchId = batchResult.insertId;
+
+      const batchBarcode = generateBatchBarcode(item.productId, batchId);
+      await connection.execute(
+        'UPDATE stock_batches SET barcode = ?, updated_at = NOW() WHERE batch_id = ?',
+        [batchBarcode, batchId]
+      );
 
       // 4. Insert inventory movement
       await connection.execute(

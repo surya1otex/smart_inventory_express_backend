@@ -14,6 +14,36 @@ const generateInvoiceNo = (saleType) => {
   return `INV-${prefix}-${yyyy}${mm}${dd}-${rand}`;
 };
 
+const calculateSaleTotals = (items, discount) => {
+  const subtotal = items.reduce((sum, it) => sum + it.quantity * it.rate, 0);
+  const gst_total = items.reduce((sum, it) => sum + (it.quantity * it.rate * it.gst_percent) / 100, 0);
+  const total_amount = subtotal - discount + gst_total;
+  return { subtotal, gst_total, total_amount };
+};
+
+const toLocalYmd = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const isBatchExpired = (expiryValue, today = new Date()) => {
+  if (expiryValue == null || expiryValue === '') return false;
+  let ymd;
+  if (expiryValue instanceof Date) {
+    if (Number.isNaN(expiryValue.getTime())) return false;
+    ymd = toLocalYmd(expiryValue);
+  } else {
+    ymd = String(expiryValue).slice(0, 10);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  return ymd <= toLocalYmd(today);
+};
+
+exports.calculateSaleTotals = calculateSaleTotals;
+exports.isBatchExpired = isBatchExpired;
+
 // Helper: read columns from a table and return a Set of column names
 const getTableColumns = async (connection, tableName) => {
   const [rows] = await connection.query(`SHOW COLUMNS FROM ${tableName}`);
@@ -39,7 +69,8 @@ exports.create = async (req, res) => {
     sale_type,
     customer_name,
     payment_mode,
-    items
+    items,
+    discount: discountInput
   } = saleData;
 
   try {
@@ -94,9 +125,18 @@ exports.create = async (req, res) => {
       return { product_id, batch_id, quantity, rate, gst_percent };
     });
 
-    const subtotal = normalizedItems.reduce((sum, it) => sum + it.quantity * it.rate, 0);
-    const gst_total = normalizedItems.reduce((sum, it) => sum + (it.quantity * it.rate * it.gst_percent) / 100, 0);
-    const total_amount = subtotal + gst_total;
+    let discount = 0;
+    if (discountInput !== undefined && discountInput !== null && discountInput !== '') {
+      discount = typeof discountInput === 'string' ? Number(discountInput) : discountInput;
+      if (!Number.isFinite(discount) || discount < 0) {
+        return res.status(400).json({ success: false, message: 'discount must be a non-negative number', data: null });
+      }
+    }
+
+    const { subtotal, gst_total, total_amount } = calculateSaleTotals(normalizedItems, discount);
+    if (discount > subtotal) {
+      return res.status(400).json({ success: false, message: 'discount cannot exceed subtotal', data: null });
+    }
 
     const connection = await pool.getConnection();
 
@@ -205,6 +245,10 @@ exports.create = async (req, res) => {
       // Generate invoice number and insert header
       const invoice_no = generateInvoiceNo(sale_type);
 
+      const discountColumn = salesHeaderCols.has('discount')
+        ? 'discount'
+        : (salesHeaderCols.has('discount_amount') ? 'discount_amount' : null);
+
       const headerInsertColumns = [
         'sale_type',
         'customer_name',
@@ -213,25 +257,34 @@ exports.create = async (req, res) => {
         'subtotal',
         'gst_amount',
         'total_amount',
-        'created_at',
       ];
-
-      const headerInsertQuery = `
-        INSERT INTO sales_headers
-          (${headerInsertColumns.join(', ')})
-        VALUES
-          (?, ?, ?, ?, ?, ?, ?, NOW())
-      `;
-
-      const [headerResult] = await connection.execute(headerInsertQuery, [
+      const headerInsertValues = [
         sale_type,
         customer_name,
         payment_mode,
         invoice_no,
         subtotal,
         gst_total,
-        total_amount
-      ]);
+        total_amount,
+      ];
+      if (discountColumn) {
+        headerInsertColumns.push(discountColumn);
+        headerInsertValues.push(discount);
+      }
+      headerInsertColumns.push('created_at');
+
+      const headerPlaceholders = headerInsertColumns
+        .map((column) => (column === 'created_at' ? 'NOW()' : '?'))
+        .join(', ');
+
+      const headerInsertQuery = `
+        INSERT INTO sales_headers
+          (${headerInsertColumns.join(', ')})
+        VALUES
+          (${headerPlaceholders})
+      `;
+
+      const [headerResult] = await connection.execute(headerInsertQuery, headerInsertValues);
 
       // 2. Insert into sales_headers -> get sale_id
       const sale_id = headerResult.insertId;
@@ -257,8 +310,9 @@ exports.create = async (req, res) => {
 
       for (const item of normalizedItems) {
         // Validate stock with row lock
+        const expirySelect = stockBatchCols.has('expiry_date') ? ', expiry_date' : '';
         const [batchRows] = await connection.execute(
-          `SELECT qty_available
+          `SELECT qty_available${expirySelect}
            FROM stock_batches
            WHERE product_id = ? AND batch_id = ?
            FOR UPDATE`,
@@ -268,6 +322,12 @@ exports.create = async (req, res) => {
         if (batchRows.length === 0) {
           const err = new Error(`Batch not found for product_id ${item.product_id} and batch_id ${item.batch_id}`);
           err.status = 404;
+          throw err;
+        }
+
+        if (stockBatchCols.has('expiry_date') && isBatchExpired(batchRows[0].expiry_date)) {
+          const err = new Error(`Cannot sell expired batch ${item.batch_id} for product_id ${item.product_id}`);
+          err.status = 400;
           throw err;
         }
 
@@ -343,7 +403,11 @@ exports.create = async (req, res) => {
         message: 'Sale saved successfully',
         data: {
           invoice_no,
-          sale_id
+          sale_id,
+          subtotal,
+          discount,
+          gst_amount: gst_total,
+          total_amount
         }
       });
     } catch (error) {

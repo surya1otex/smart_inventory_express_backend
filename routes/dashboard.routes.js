@@ -4,8 +4,11 @@
 
 const express = require('express');
 const dashboardController = require('../controllers/dashboard.controller');
+const { verifyToken } = require('../middleware/auth.middleware');
 
 const router = express.Router();
+
+router.use(verifyToken);
 
 router.get('/summary', dashboardController.getSummary);
 router.get('/sales-trend', dashboardController.getSalesTrend);
