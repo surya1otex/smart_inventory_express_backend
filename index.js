@@ -27,6 +27,7 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const authRoutes = require('./routes/auth.routes');
 const reportsRoutes = require('./routes/reports.routes');
 const batchRoutes = require('./routes/batch.routes');
+const pharmacySettingsRoutes = require('./routes/pharmacy-settings.routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 const { verifyToken } = require('./middleware/auth.middleware');
 
@@ -81,6 +82,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/batches', batchRoutes);
+app.use('/api/settings', pharmacySettingsRoutes);
 // ============================================
 // LEGACY ROUTES (existing endpoints)
 // ============================================

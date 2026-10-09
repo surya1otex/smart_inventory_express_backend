@@ -39,6 +39,16 @@ const formatRowDate = (value) => {
   return String(value).slice(0, 10);
 };
 
+const getColumns = async (pool, tableName) => {
+  if (!/^[a-z_]+$/.test(tableName)) {
+    const err = new Error('Invalid table name');
+    err.status = 500;
+    throw err;
+  }
+  const [rows] = await pool.query(`SHOW COLUMNS FROM ${tableName}`);
+  return new Set(rows.map((row) => row.Field));
+};
+
 const handleError = (res, error, label) => {
   console.error(`Error in ${label}:`, error);
   const status = error.status || 500;
@@ -106,6 +116,141 @@ exports.getSalesReport = async (req, res) => {
     });
   } catch (error) {
     handleError(res, error, 'sales report');
+  }
+};
+
+/**
+ * GET /api/reports/sales/:invoiceNo
+ * Header plus line items for one saved invoice.
+ */
+exports.getSalesInvoice = async (req, res) => {
+  const pool = req.app.locals.db;
+
+  try {
+    const invoiceNo = String(req.params.invoiceNo || '').trim();
+    if (!invoiceNo || invoiceNo.length > 64 || !/^[A-Za-z0-9_-]+$/.test(invoiceNo)) {
+      const err = new Error('A valid invoice number is required');
+      err.status = 400;
+      throw err;
+    }
+
+    const headerCols = await getColumns(pool, 'sales_headers');
+    const itemCols = await getColumns(pool, 'invoice_items');
+    const productCols = await getColumns(pool, 'products');
+    const batchCols = await getColumns(pool, 'stock_batches');
+
+    const discountSql = headerCols.has('discount')
+      ? 'IFNULL(sh.discount, 0)'
+      : (headerCols.has('discount_amount') ? 'IFNULL(sh.discount_amount, 0)' : '0');
+
+    const [headers] = await pool.execute(
+      `
+      SELECT
+        sh.invoice_no AS invoice_no,
+        sh.created_at AS created_at,
+        sh.customer_name AS customer_name,
+        sh.payment_mode AS payment_mode,
+        sh.sale_type AS sale_type,
+        IFNULL(sh.subtotal, 0) AS subtotal,
+        IFNULL(sh.gst_amount, 0) AS gst_amount,
+        IFNULL(sh.total_amount, 0) AS total_amount,
+        ${discountSql} AS discount
+      FROM sales_headers sh
+      WHERE sh.invoice_no = ?
+      LIMIT 1
+      `,
+      [invoiceNo]
+    );
+
+    if (!headers.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found',
+        data: null,
+      });
+    }
+
+    const header = headers[0];
+    const qtyColumn = itemCols.has('quantity') ? 'quantity' : (itemCols.has('qty') ? 'qty' : null);
+    const rateColumn = itemCols.has('selling_price') ? 'selling_price' : (itemCols.has('rate') ? 'rate' : null);
+    const gstColumn = itemCols.has('tax_percent') ? 'tax_percent' : (itemCols.has('gst') ? 'gst' : null);
+
+    if (!qtyColumn || !rateColumn || !gstColumn || !itemCols.has('invoice_id')) {
+      const err = new Error('invoice_items is missing quantity, rate, tax, or invoice_id');
+      err.status = 500;
+      throw err;
+    }
+
+    const hsnSql = productCols.has('hsn_code') ? 'p.hsn_code' : 'NULL';
+    const batchNoSql = batchCols.has('batch_no') ? 'sb.batch_no' : 'NULL';
+    const expirySql = batchCols.has('expiry_date') ? 'sb.expiry_date' : 'NULL';
+
+    const [items] = await pool.execute(
+      `
+      SELECT
+        p.product_name AS product_name,
+        ${hsnSql} AS hsn_code,
+        ${batchNoSql} AS batch_no,
+        ${expirySql} AS expiry_date,
+        ii.${qtyColumn} AS quantity,
+        ii.${rateColumn} AS rate,
+        ii.${gstColumn} AS tax_percent
+      FROM invoice_items ii
+      INNER JOIN sales_headers sh ON ii.invoice_id = sh.sale_id
+      LEFT JOIN products p ON p.product_id = ii.product_id
+      LEFT JOIN stock_batches sb
+        ON sb.batch_id = ii.batch_id AND sb.product_id = ii.product_id
+      WHERE sh.invoice_no = ?
+      ORDER BY ii.created_at ASC, ii.product_id ASC
+      `,
+      [invoiceNo]
+    );
+
+    const billType = String(header.sale_type || '').toUpperCase() === 'GST' ? 'GST' : 'POS';
+    const mappedItems = items.map((item) => {
+      const quantity = num(item.quantity);
+      const rate = num(item.rate);
+      const gstPercent = billType === 'GST' ? num(item.tax_percent) : 0;
+      const taxableLine = round2(quantity * rate);
+      const gstAmount = round2((taxableLine * gstPercent) / 100);
+      return {
+        productName: item.product_name || '',
+        hsnCode: item.hsn_code || '',
+        batchNo: item.batch_no || '',
+        expiryDate: item.expiry_date instanceof Date
+          ? item.expiry_date.toISOString()
+          : formatRowDate(item.expiry_date),
+        quantity,
+        rate: round2(rate),
+        gstPercent,
+        gstAmount,
+        lineTotal: round2(taxableLine + gstAmount),
+      };
+    });
+
+    const gstAmount = round2(header.gst_amount);
+    const isGst = billType === 'GST';
+
+    res.json({
+      success: true,
+      message: 'Invoice details fetched successfully',
+      data: {
+        invoiceNo: header.invoice_no,
+        date: formatRowDate(header.created_at),
+        customer: header.customer_name || 'Walk-in',
+        paymentMode: header.payment_mode || '',
+        billType,
+        subtotal: round2(header.subtotal),
+        discount: round2(header.discount),
+        gstAmount,
+        cgst: isGst ? round2(gstAmount / 2) : 0,
+        sgst: isGst ? round2(gstAmount / 2) : 0,
+        grandTotal: round2(header.total_amount),
+        items: mappedItems,
+      },
+    });
+  } catch (error) {
+    handleError(res, error, 'invoice details');
   }
 };
 

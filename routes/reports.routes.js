@@ -11,6 +11,7 @@ const router = express.Router();
 router.use(verifyToken);
 
 router.get('/sales', reportsController.getSalesReport);
+router.get('/sales/:invoiceNo', reportsController.getSalesInvoice);
 router.get('/inventory', reportsController.getInventoryReport);
 router.get('/gst', reportsController.getGstReport);
 router.get('/profit', reportsController.getProfitReport);
